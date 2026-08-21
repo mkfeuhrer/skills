@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>git-story</title>
+<style>
+:root{
+  --bg:#0d0f14; --panel:#151923; --ink:#e8e6e1; --dim:#8a91a3;
+  --accent:#ffb454; --accent2:#5cc8ff; --line:#242a38;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);
+  font:16px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;}
+.mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.wrap{max-width:1060px;margin:0 auto;padding:48px 28px}
+
+/* poster */
+.poster{border:1px solid var(--line);background:var(--panel);
+  padding:56px 48px;position:relative;overflow:hidden}
+.poster .kick{color:var(--accent);letter-spacing:.18em;text-transform:uppercase;
+  font-size:12px;font-family:ui-monospace,Menlo,monospace;margin-bottom:16px}
+.poster h1{font-size:clamp(34px,5vw,58px);line-height:1.08;font-weight:800;
+  letter-spacing:-.02em;max-width:20ch}
+.poster .tagline{color:var(--dim);margin-top:14px;font-size:19px}
+.stats{display:flex;gap:40px;margin-top:36px;flex-wrap:wrap}
+.stat b{display:block;font-size:30px;color:var(--accent);font-weight:750}
+.stat span{color:var(--dim);font-size:13px;letter-spacing:.06em;text-transform:uppercase}
+.contrib{margin-top:30px;color:var(--dim);font-size:13px}
+
+/* timeline */
+h2.sec{margin:64px 0 8px;font-size:13px;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--accent);font-weight:600}
+.sub{color:var(--dim);margin-bottom:24px;font-size:15px}
+.tlbox{border:1px solid var(--line);background:var(--panel);padding:32px 28px}
+.controls{display:flex;align-items:center;gap:14px;margin-bottom:10px}
+#play{background:var(--accent);color:#14100a;border:none;font-weight:700;
+  padding:9px 22px;border-radius:999px;cursor:pointer;font-size:14px}
+#play:hover{filter:brightness(1.08)}
+#clock{color:var(--dim)}
+.rail{position:relative;height:74px;margin-top:18px}
+.rail svg{width:100%;height:100%;display:block}
+#cursorline{position:absolute;top:-12px;bottom:-12px;width:2px;background:var(--accent);
+  left:0;opacity:0;transition:left .1s linear}
+
+/* eras */
+.era{display:none;border-left:3px solid var(--accent);padding:18px 22px;
+  background:var(--panel);border-top:1px solid var(--line);
+  border-right:1px solid var(--line);border-bottom:1px solid var(--line);
+  margin-bottom:-1px}
+.era.on{display:block;animation:fadeup .45s ease both}
+@keyframes fadeup{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.era h3{font-size:21px;font-weight:700;letter-spacing:-.01em}
+.era .dates{color:var(--accent2);font-size:13px;margin:2px 0 10px}
+.era p.cap{color:var(--dim);max-width:70ch}
+.hl{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line)}
+.hl .subj{font-size:14px}
+.hl .note{color:var(--dim);font-size:13px;font-style:italic}
+.hl .meta{color:var(--dim);font-size:11.5px;margin-top:2px}
+
+/* chart */
+.chart{border:1px solid var(--line);background:var(--panel);padding:26px 22px 14px}
+.chart svg{width:100%;height:220px;display:block}
+.legend{color:var(--dim);font-size:12px;padding:8px 4px 0}
+
+/* drama */
+.drama{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.card{border:1px solid var(--line);background:var(--panel);padding:24px}
+.card .tag{color:var(--accent);font-size:11px;letter-spacing:.15em;text-transform:uppercase}
+.card h3{margin:8px 0 6px;font-size:17px}
+.card p{color:var(--dim);font-size:14px}
+footer{margin-top:72px;color:var(--dim);font-size:13px;display:flex;
+  justify-content:space-between;border-top:1px solid var(--line);padding-top:20px}
+footer a{color:var(--accent2);text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <section class="poster" id="poster">
+    <div class="kick">git-story / a repository's life in one page</div>
+    <h1 id="t"></h1>
+    <div class="tagline" id="tg"></div>
+    <div class="stats" id="st"></div>
+    <div class="contrib" id="ct"></div>
+  </section>
+
+  <h2 class="sec">The timeline</h2>
+  <p class="sub">Press play — watch the project unfold era by era.</p>
+  <div class="tlbox">
+    <div class="controls"><button id="play">Play</button><span id="clock"></span></div>
+    <div class="rail"><svg id="rail" preserveAspectRatio="none"></svg><div id="cursorline"></div></div>
+  </div>
+  <div id="eras" style="margin-top:18px"></div>
+
+  <h2 class="sec">Growth</h2>
+  <p class="sub">Cumulative lines added and deleted across history.</p>
+  <div class="chart"><svg id="growth" preserveAspectRatio="none"></svg>
+  <div class="legend">churn = insertions + deletions, sampled at regular commit intervals</div></div>
+
+  <h2 class="sec">Dramatic moments</h2>
+  <div class="drama" id="drama"></div>
+
+  <footer>
+    <span>made with <a href="https://github.com/mkfeuhrer/skills">git-story</a></span>
+    <span class="mono" id="gen"></span>
+  </footer>
+</div>
+
+<script>
+const D = {"generated_at": "2026-08-21T22:15:34+00:00", "meta": {"repo_path": "/tmp/axios", "title": "The Story of Axios", "tagline": "2,176 commits from 670 contributors across 12 years."}, "stats": {"total_commits": 2176, "sampled": false, "contributors": 670, "span_days": 4384, "first_commit_ts": 1408401607, "last_commit_ts": 1787154826, "total_insertions": 341149, "total_deletions": 244886}, "top_contributors": [{"name": "Jay", "commits": 271}, {"name": "Dmitriy Mozgovoy", "commits": 186}, {"name": "mzabriskie", "commits": 133}, {"name": "Matt Zabriskie", "commits": 129}, {"name": "Nick Uraltsev", "commits": 105}, {"name": "dependabot[bot]", "commits": 102}, {"name": "github-actions[bot]", "commits": 101}, {"name": "Emily Morehouse", "commits": 20}, {"name": "Rub\u00e9n Norte", "commits": 16}, {"name": "Justin Beckwith", "commits": 14}], "growth": [{"ts": 1408401607, "churn": 3}, {"ts": 1409072407, "churn": 4177}, {"ts": 1409157209, "churn": 7505}, {"ts": 1409251033, "churn": 9298}, {"ts": 1409295949, "churn": 12152}, {"ts": 1409351769, "churn": 13157}, {"ts": 1409683271, "churn": 13226}, {"ts": 1410547097, "churn": 30642}, {"ts": 1410562596, "churn": 44275}, {"ts": 1410751852, "churn": 46874}, {"ts": 1410891383, "churn": 47459}, {"ts": 1411066885, "churn": 47677}, {"ts": 1411340227, "churn": 47794}, {"ts": 1412052109, "churn": 47940}, {"ts": 1413396626, "churn": 50244}, {"ts": 1418214019, "churn": 51363}, {"ts": 1422004317, "churn": 52220}, {"ts": 1422936728, "churn": 57268}, {"ts": 1426019323, "churn": 58532}, {"ts": 1426197153, "churn": 58814}, {"ts": 1426623266, "churn": 59462}, {"ts": 1426720875, "churn": 60145}, {"ts": 1428462000, "churn": 60721}, {"ts": 1428525881, "churn": 61136}, {"ts": 1432726354, "churn": 61555}, {"ts": 1434686182, "churn": 61621}, {"ts": 1434689593, "churn": 61850}, {"ts": 1434691166, "churn": 61963}, {"ts": 1437653954, "churn": 62004}, {"ts": 1439254774, "churn": 62137}, {"ts": 1442873854, "churn": 67808}, {"ts": 1443369307, "churn": 67870}, {"ts": 1443505790, "churn": 68020}, {"ts": 1443864289, "churn": 68342}, {"ts": 1445366539, "churn": 68714}, {"ts": 1446027940, "churn": 68790}, {"ts": 1447323417, "churn": 71258}, {"ts": 1448014009, "churn": 71564}, {"ts": 1448047034, "churn": 71836}, {"ts": 1448178719, "churn": 71952}, {"ts": 1449760891, "churn": 72119}, {"ts": 1449864159, "churn": 72944}, {"ts": 1450120765, "churn": 73153}, {"ts": 1450151012, "churn": 73833}, {"ts": 1451819863, "churn": 74235}, {"ts": 1453141119, "churn": 74551}, {"ts": 1453505274, "churn": 74703}, {"ts": 1454414965, "churn": 74803}, {"ts": 1456505980, "churn": 74843}, {"ts": 1456829651, "churn": 74889}, {"ts": 1457072202, "churn": 75028}, {"ts": 1457076788, "churn": 75229}, {"ts": 1457113302, "churn": 75627}, {"ts": 1457382087, "churn": 76295}, {"ts": 1458671331, "churn": 76384}, {"ts": 1459453895, "churn": 76453}, {"ts": 1460515752, "churn": 76554}, {"ts": 1461108405, "churn": 76710}, {"ts": 1461728526, "churn": 77137}, {"ts": 1463167738, "churn": 77396}, {"ts": 1463519269, "churn": 77436}, {"ts": 1464758407, "churn": 77492}, {"ts": 1465851368, "churn": 78146}, {"ts": 1466663600, "churn": 78233}, {"ts": 1466718156, "churn": 78419}, {"ts": 1467899991, "churn": 78470}, {"ts": 1468689058, "churn": 80409}, {"ts": 1470219415, "churn": 80481}, {"ts": 1471365263, "churn": 80746}, {"ts": 1471927979, "churn": 81250}, {"ts": 1472322413, "churn": 81445}, {"ts": 1473599722, "churn": 81515}, {"ts": 1474138376, "churn": 81852}, {"ts": 1474673202, "churn": 82034}, {"ts": 1476160790, "churn": 82603}, {"ts": 1476753613, "churn": 82720}, {"ts": 1477358696, "churn": 82948}, {"ts": 1478758916, "churn": 83054}, {"ts": 1480331815, "churn": 83197}, {"ts": 1485751790, "churn": 83221}, {"ts": 1487057905, "churn": 83234}, {"ts": 1488437350, "churn": 83254}, {"ts": 1490513993, "churn": 83304}, {"ts": 1491603412, "churn": 83403}, {"ts": 1491652534, "churn": 83467}, {"ts": 1491680584, "churn": 86011}, {"ts": 1496001820, "churn": 86079}, {"ts": 1499673043, "churn": 88663}, {"ts": 1502542963, "churn": 88748}, {"ts": 1504032829, "churn": 88847}, {"ts": 1508037918, "churn": 89142}, {"ts": 1509522478, "churn": 89313}, {"ts": 1510442567, "churn": 89330}, {"ts": 1513835148, "churn": 89373}, {"ts": 1515526783, "churn": 89407}, {"ts": 1517982444, "churn": 89467}, {"ts": 1519082638, "churn": 89536}, {"ts": 1520489864, "churn": 89714}, {"ts": 1522786778, "churn": 90010}, {"ts": 1523074905, "churn": 90074}, {"ts": 1523138180, "churn": 90399}, {"ts": 1523171986, "churn": 90494}, {"ts": 1529248291, "churn": 90587}, {"ts": 1530814121, "churn": 90653}, {"ts": 1532796393, "churn": 91172}, {"ts": 1533619096, "churn": 91220}, {"ts": 1533664350, "churn": 91395}, {"ts": 1534997440, "churn": 92682}, {"ts": 1549252489, "churn": 92748}, {"ts": 1557256834, "churn": 92888}, {"ts": 1557949223, "churn": 92908}, {"ts": 1559316035, "churn": 92972}, {"ts": 1567790635, "churn": 93104}, {"ts": 1568377156, "churn": 93231}, {"ts": 1569457124, "churn": 93267}, {"ts": 1571188856, "churn": 93298}, {"ts": 1572014087, "churn": 93675}, {"ts": 1573180764, "churn": 93690}, {"ts": 1575877965, "churn": 93743}, {"ts": 1579537233, "churn": 94297}, {"ts": 1581745268, "churn": 94403}, {"ts": 1582643151, "churn": 94467}, {"ts": 1583502919, "churn": 94567}, {"ts": 1586080898, "churn": 94697}, {"ts": 1590176666, "churn": 94739}, {"ts": 1590599908, "churn": 94780}, {"ts": 1590771980, "churn": 94818}, {"ts": 1591818451, "churn": 95444}, {"ts": 1593103270, "churn": 95654}, {"ts": 1597979518, "churn": 96243}, {"ts": 1602577177, "churn": 96304}, {"ts": 1604040882, "churn": 96378}, {"ts": 1610463162, "churn": 96799}, {"ts": 1613543280, "churn": 96883}, {"ts": 1617029249, "churn": 97329}, {"ts": 1618862748, "churn": 97884}, {"ts": 1620377574, "churn": 97988}, {"ts": 1628857637, "churn": 98033}, {"ts": 1628859627, "churn": 98050}, {"ts": 1630782110, "churn": 101875}, {"ts": 1630843565, "churn": 101981}, {"ts": 1631819320, "churn": 102153}, {"ts": 1633543986, "churn": 103193}, {"ts": 1634027660, "churn": 103346}, {"ts": 1635231562, "churn": 103971}, {"ts": 1640199005, "churn": 104030}, {"ts": 1640200492, "churn": 104230}, {"ts": 1640277944, "churn": 104345}, {"ts": 1642490007, "churn": 133777}, {"ts": 1644587710, "churn": 133983}, {"ts": 1644762024, "churn": 134287}, {"ts": 1646675168, "churn": 134394}, {"ts": 1646893859, "churn": 134654}, {"ts": 1648756401, "churn": 137818}, {"ts": 1649166421, "churn": 139903}, {"ts": 1650958248, "churn": 145783}, {"ts": 1651051850, "churn": 156072}, {"ts": 1651596370, "churn": 156145}, {"ts": 1651602590, "churn": 157996}, {"ts": 1651606780, "churn": 158051}, {"ts": 1651688723, "churn": 158188}, {"ts": 1651777352, "churn": 158224}, {"ts": 1652114030, "churn": 158328}, {"ts": 1652119385, "churn": 158406}, {"ts": 1652681156, "churn": 159414}, {"ts": 1652684882, "churn": 159744}, {"ts": 1653026676, "churn": 160096}, {"ts": 1653545448, "churn": 160670}, {"ts": 1653732561, "churn": 160851}, {"ts": 1653751533, "churn": 161973}, {"ts": 1654024485, "churn": 170061}, {"ts": 1654195702, "churn": 170196}, {"ts": 1654195863, "churn": 170232}, {"ts": 1654196011, "churn": 170283}, {"ts": 1654196192, "churn": 170301}, {"ts": 1654198727, "churn": 170349}, {"ts": 1655543599, "churn": 170381}, {"ts": 1658942630, "churn": 220223}, {"ts": 1659975638, "churn": 220586}, {"ts": 1663219300, "churn": 220712}, {"ts": 1664216792, "churn": 220758}, {"ts": 1664392197, "churn": 221498}, {"ts": 1664907921, "churn": 230179}, {"ts": 1665046787, "churn": 230293}, {"ts": 1665132223, "churn": 230471}, {"ts": 1665688261, "churn": 230650}, {"ts": 1665691930, "churn": 231265}, {"ts": 1667149229, "churn": 233384}, {"ts": 1667150976, "churn": 233428}, {"ts": 1667413037, "churn": 233455}, {"ts": 1668104582, "churn": 235297}, {"ts": 1669140991, "churn": 240106}, {"ts": 1669142664, "churn": 240194}, {"ts": 1669384591, "churn": 243755}, {"ts": 1669920762, "churn": 243844}, {"ts": 1670799011, "churn": 255836}, {"ts": 1671468237, "churn": 257327}, {"ts": 1672294872, "churn": 259369}, {"ts": 1673014622, "churn": 260141}, {"ts": 1673139112, "churn": 260322}, {"ts": 1673826466, "churn": 260868}, {"ts": 1674743192, "churn": 261415}, {"ts": 1675118106, "churn": 261620}, {"ts": 1675172350, "churn": 262036}, {"ts": 1675443770, "churn": 262741}, {"ts": 1676312244, "churn": 262822}, {"ts": 1677099931, "churn": 263127}, {"ts": 1681924472, "churn": 263356}, {"ts": 1682463899, "churn": 263624}, {"ts": 1692986871, "churn": 263926}, {"ts": 1693076349, "churn": 264042}, {"ts": 1694521383, "churn": 264315}, {"ts": 1696096199, "churn": 264989}, {"ts": 1699388175, "churn": 265647}, {"ts": 1699467252, "churn": 267420}, {"ts": 1699991621, "churn": 267680}, {"ts": 1703622566, "churn": 268196}, {"ts": 1704310652, "churn": 268346}, {"ts": 1704484282, "churn": 268540}, {"ts": 1706212674, "churn": 269370}, {"ts": 1710518734, "churn": 277445}, {"ts": 1714756931, "churn": 283344}, {"ts": 1716072021, "churn": 283779}, {"ts": 1716150245, "churn": 285895}, {"ts": 1722470769, "churn": 286307}, {"ts": 1723577540, "churn": 288097}, {"ts": 1723924935, "churn": 288324}, {"ts": 1724415402, "churn": 288375}, {"ts": 1725042372, "churn": 288732}, {"ts": 1726407647, "churn": 289662}, {"ts": 1727608394, "churn": 289713}, {"ts": 1730124615, "churn": 290057}, {"ts": 1730833710, "churn": 290216}, {"ts": 1731336903, "churn": 290630}, {"ts": 1731425613, "churn": 291419}, {"ts": 1733296819, "churn": 293422}, {"ts": 1735269303, "churn": 293490}, {"ts": 1738263731, "churn": 293506}, {"ts": 1738266354, "churn": 293528}, {"ts": 1738507309, "churn": 293578}, {"ts": 1740560775, "churn": 294158}, {"ts": 1741626243, "churn": 294237}, {"ts": 1742436790, "churn": 294397}, {"ts": 1744656927, "churn": 294508}, {"ts": 1745505476, "churn": 294641}, {"ts": 1745609492, "churn": 294964}, {"ts": 1748604538, "churn": 294983}, {"ts": 1749903067, "churn": 295128}, {"ts": 1751813996, "churn": 295161}, {"ts": 1753715881, "churn": 295810}, {"ts": 1754983742, "churn": 296068}, {"ts": 1756967620, "churn": 317519}, {"ts": 1757619135, "churn": 317713}, {"ts": 1757795056, "churn": 318013}, {"ts": 1758286876, "churn": 318583}, {"ts": 1759994570, "churn": 318857}, {"ts": 1760280424, "churn": 319047}, {"ts": 1761222831, "churn": 320121}, {"ts": 1761592089, "churn": 321571}, {"ts": 1762211315, "churn": 321678}, {"ts": 1762454308, "churn": 322734}, {"ts": 1762880770, "churn": 324013}, {"ts": 1762974716, "churn": 324127}, {"ts": 1764918735, "churn": 324290}, {"ts": 1765173825, "churn": 324948}, {"ts": 1766477679, "churn": 325123}, {"ts": 1767093259, "churn": 325334}, {"ts": 1768227600, "churn": 325496}, {"ts": 1769493846, "churn": 326840}, {"ts": 1770191232, "churn": 379893}, {"ts": 1770312629, "churn": 380537}, {"ts": 1771432436, "churn": 397122}, {"ts": 1772206102, "churn": 398351}, {"ts": 1773322029, "churn": 424860}, {"ts": 1773571990, "churn": 459400}, {"ts": 1773582821, "churn": 482513}, {"ts": 1773689772, "churn": 486592}, {"ts": 1774469292, "churn": 493621}, {"ts": 1774690108, "churn": 493684}, {"ts": 1774882600, "churn": 493791}, {"ts": 1775066887, "churn": 506275}, {"ts": 1775215302, "churn": 506389}, {"ts": 1775414267, "churn": 519263}, {"ts": 1775476914, "churn": 519909}, {"ts": 1775573420, "churn": 520595}, {"ts": 1775636097, "churn": 520827}, {"ts": 1775753392, "churn": 521530}, {"ts": 1776184880, "churn": 534323}, {"ts": 1776277713, "churn": 536248}, {"ts": 1776414066, "churn": 536331}, {"ts": 1776518082, "churn": 536522}, {"ts": 1776605321, "churn": 536990}, {"ts": 1776617503, "churn": 537477}, {"ts": 1776793522, "churn": 539372}, {"ts": 1776884020, "churn": 543158}, {"ts": 1777134250, "churn": 543683}, {"ts": 1777203709, "churn": 544183}, {"ts": 1777303645, "churn": 544621}, {"ts": 1777394750, "churn": 545254}, {"ts": 1777567796, "churn": 545652}, {"ts": 1777735136, "churn": 548051}, {"ts": 1778004317, "churn": 550793}, {"ts": 1778088545, "churn": 551410}, {"ts": 1778346283, "churn": 552270}, {"ts": 1778691926, "churn": 553037}, {"ts": 1779194497, "churn": 553512}, {"ts": 1779300229, "churn": 556288}, {"ts": 1779471603, "churn": 557570}, {"ts": 1779622086, "churn": 558282}, {"ts": 1779821073, "churn": 558414}, {"ts": 1779989910, "churn": 558651}, {"ts": 1780336825, "churn": 562686}, {"ts": 1780638991, "churn": 564356}, {"ts": 1781246288, "churn": 566692}, {"ts": 1781633247, "churn": 567627}, {"ts": 1781699345, "churn": 567912}, {"ts": 1781810406, "churn": 568638}, {"ts": 1782234993, "churn": 569965}, {"ts": 1782754580, "churn": 570590}, {"ts": 1782927024, "churn": 572733}, {"ts": 1783326120, "churn": 573023}, {"ts": 1784033174, "churn": 573704}, {"ts": 1784140340, "churn": 574529}, {"ts": 1784648899, "churn": 574910}, {"ts": 1785344942, "churn": 577603}, {"ts": 1785856613, "churn": 578227}, {"ts": 1785867963, "churn": 578934}, {"ts": 1786436870, "churn": 582485}, {"ts": 1786644322, "churn": 585815}, {"ts": 1787154826, "churn": 586035}], "eras": [{"index": 0, "start_ts": 1408401607, "end_ts": 1537201507, "commit_count": 648, "insertions": 51380, "deletions": 41367, "title": "The Foundry", "caption": "Six years of foundation work: Node support landed here, file sizes got fixed, and the 0.6.0 release set the API in stone.", "highlights": [{"sha": "f4a334e17c3031970a5cb614551d057948f7d09f", "ts": 1410547097, "author": "mzabriskie", "subject": "Adding support for node", "ins": 15337, "del": 1798, "note": "Node.js support landed - axios learned to run outside the browser."}, {"sha": "399f87ea05052bf5270f5677b0952571f84dbf15", "ts": 1410562596, "author": "mzabriskie", "subject": "Fixing build problem causing ridiculous file sizes", "ins": 114, "del": 13473, "note": "A packaging bug shipped absurd bundles; this commit cut the dist back down to size."}, {"sha": "cd0cd1805434dea0d250d195a466a1236b98e502", "ts": 1442866835, "author": "mzabriskie", "subject": "Releasing 0.6.0", "ins": 309, "del": 5306, "note": "The release that froze the public API shape for years to come."}]}, {"index": 1, "start_ts": 1549252489, "end_ts": 1559316035, "commit_count": 19, "insertions": 207, "deletions": 18, "title": "The 0.19.0 Sprint", "caption": "A short, sharp burst: issue templates arrived and one carefully versioned release shipped.", "highlights": [{"sha": "e122c80c9ddb17e4dad2b6225da2ed9e95e986c7", "ts": 1549258868, "author": "Emily Morehouse", "subject": "Add issue templates", "ins": 129, "del": 0, "note": "A key change landed during this era."}, {"sha": "3f7451ceb7b8386a0c233b869dddea1fea05b12f", "ts": 1559231844, "author": "Emily Morehouse", "subject": "Update Changelog for release (0.19.0)", "ins": 35, "del": 0, "note": "A key change landed during this era."}, {"sha": "8d0b92b2678d96770304dd767cd05a59d37f12cf", "ts": 1559232606, "author": "Emily Morehouse", "subject": "Releasing 0.19.0", "ins": 15, "del": 7, "note": "The 0.19.0 line became the long-lived stable release."}]}, {"index": 2, "start_ts": 1567645321, "end_ts": 1682636693, "commit_count": 586, "insertions": 118913, "deletions": 51982, "title": "The ES2017 Era", "caption": "The rewrite era: Axios moved to ES2017, changelogs got disciplined, and CI/release scripts took over packaging.", "highlights": [{"sha": "bdf493cf8b84eb3e3440e72d5725ba0f138e0451", "ts": 1655543967, "author": "Dmitriy Mozgovoy", "subject": "Axios ES2017 (#4787)", "ins": 26432, "del": 23261, "note": "The codebase moved to ES2017 syntax in one sweeping rewrite."}, {"sha": "dccaeb1b68ee32cce90fe731cef6ae5ee1b9d931", "ts": 1642489579, "author": "Jay", "subject": "Updated changelog for release", "ins": 29386, "del": 0, "note": "A key change landed during this era."}, {"sha": "f2547d0e030eab3dfa22d39b4a71c8f90fd8c2b9", "ts": 1670799011, "author": "Dmitriy Mozgovoy", "subject": "CI/release scripts (#5364)", "ins": 11217, "del": 350, "note": "A key change landed during this era."}]}, {"index": 3, "start_ts": 1691043690, "end_ts": 1787154826, "commit_count": 718, "insertions": 170649, "deletions": 151519, "title": "The Modernization Wave", "caption": "Refactors everywhere: minors bumped, proxies read env vars correctly, and dist stopped shipping loose files.", "highlights": [{"sha": "472c631e86e5ba056065e972932c6b85af05c796", "ts": 1769711683, "author": "Jay", "subject": "refactor: bump minors package versions (#7356)", "ins": 13124, "del": 38647, "note": "The heaviest single change in axios history."}, {"sha": "e943f6c54581deb983f065b05b9af757ebb0ca5d", "ts": 1773508206, "author": "Jay", "subject": "fix: proxy from env v2 fix (#7499)", "ins": 17592, "del": 2926, "note": "A key change landed during this era."}, {"sha": "0efcefe761f5d4ab6d93897929b3aa12c790053b", "ts": 1773581213, "author": "Jay", "subject": "refactor: ci to not use file but rather packed dist (#7507)", "ins": 61, "del": 17440, "note": "A key change landed during this era."}]}], "drama": {"biggest_commit": {"sha": "472c631e86e5ba056065e972932c6b85af05c796", "ts": 1769711683, "subject": "refactor: bump minors package versions (#7356)", "ins": 13124, "del": 38647, "note": "The heaviest single change in axios history."}, "mass_deletion": {"sha": "472c631e86e5ba056065e972932c6b85af05c796", "ts": 1769711683, "subject": "refactor: bump minors package versions (#7356)", "ins": 13124, "del": 38647, "note": "The largest net removal in the repo history."}, "longest_stall": {"after_sha": "75c8b3f146aaa8a71f7dca0263686fb1799f8f31", "days": 139, "resumed_ts": 1549252489}}};
+const $ = id => document.getElementById(id);
+const fd = ts => new Date(ts*1000).toLocaleDateString(undefined,{year:'numeric',month:'short'});
+const fn = x => x>=1e6?(x/1e6).toFixed(1)+'M':x>=1e3?(x/1e3).toFixed(1)+'k':''+x;
+
+// poster
+$('t').textContent = D.meta.title || 'The Story of ' + D.meta.repo_path.split('/').pop();
+$('tg').textContent = D.meta.tagline || '';
+const st = D.stats;
+const dur = st.span_days >= 60
+  ? `<b>${fn(Math.round(st.span_days/30))}</b><span>months</span>`
+  : `<b>${st.span_days}</b><span>days</span>`;
+$('st').innerHTML =
+  `<div class="stat"><b>${fn(st.total_commits)}</b><span>commits</span></div>`+
+  `<div class="stat"><b>${fn(st.contributors)}</b><span>contributors</span></div>`+
+  `<div class="stat">${dur}</div>`+
+  `<div class="stat"><b>${fn(st.total_insertions)}</b><span>lines added</span></div>`;
+$('ct').textContent = 'top contributors: ' +
+  D.top_contributors.slice(0,5).map(c=>c.name+' ('+c.commits+')').join(', ');
+$('gen').textContent = 'generated '+D.generated_at.slice(0,10);
+
+// rail
+const t0 = st.first_commit_ts, t1 = st.last_commit_ts, span = Math.max(1,t1-t0);
+const X = ts => ((ts-t0)/span)*1000;
+const rail = $('rail');
+const NS='http://www.w3.org/2000/svg';
+function el(n,a){const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);return e;}
+D.eras.forEach((era,i)=>{
+  const w=Math.max(2,X(era.end_ts)-X(era.start_ts));
+  const r=el('rect',{x:X(era.start_ts),y:22,width:w,height:30,rx:3,
+    fill:i%2?'#243247':'#2c3d57',stroke:'#3a4f70','data-i':i});
+  r.style.cursor='pointer';r.addEventListener('click',()=>goto(i));
+  rail.appendChild(r);
+});
+[t0,t1].forEach((ts,i)=>{const tx=el('text',{x:i?998:2,y:68,fill:'#8a91a3',
+  'font-size':'12','text-anchor':i?'end':'start'});tx.textContent=fd(ts);rail.appendChild(tx);});
+
+// era cards
+D.eras.forEach((era,i)=>{
+  const d=document.createElement('div');d.className='era';d.id='era'+i;
+  const hl=era.highlights.map(h=>`<div class="hl"><div class="subj mono">${esc(h.subject)}</div>
+    <div class="note">${esc(h.note||'')}</div>
+    <div class="meta">${fd(h.ts)} · ${esc(h.author)} · +${fn(h.ins)} −${fn(h.del)}</div></div>`).join('');
+  d.innerHTML=`<h3>${i+1}. ${esc(era.title||'Era '+(i+1))}</h3>
+    <div class="dates">${fd(era.start_ts)} – ${fd(era.end_ts)} · ${era.commit_count} commits · +${fn(era.insertions)} −${fn(era.deletions)}</div>
+    ${era.caption?`<p class="cap">${esc(era.caption)}</p>`:''}${hl}`;
+  $('eras').appendChild(d);
+});
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+// playback
+let playing=false,timer=null;
+$('play').addEventListener('click',()=>playing?stop():start());
+function start(){playing=true;$('play').textContent='Stop';let i=0;goto(0);
+  timer=setInterval(()=>{i++;if(i>=D.eras.length){stop();}else goto(i);},3800);}
+function stop(){playing=false;clearInterval(timer);$('play').textContent='Play';}
+function goto(i){
+  document.querySelectorAll('.era').forEach(e=>e.classList.remove('on'));
+  const card=$('era'+i);if(card)card.classList.add('on');
+  const mid=(X(D.eras[i].start_ts)+X(D.eras[i].end_ts))/2000;
+  $('cursorline').style.opacity=1;$('cursorline').style.left=(mid/10)+'%';
+  $('clock').textContent=`${fd(D.eras[i].start_ts)} — ${fd(D.eras[i].end_ts)} · era ${i+1}/${D.eras.length}`;
+}
+
+// growth chart
+const g=D.growth,maxC=g[g.length-1].churn||1;
+const W=1000,H=200;
+const path=g.map((p,i)=>`${i?'L':'M'}${((p.ts-t0)/span)*W},${H-(p.churn/maxC)*(H-16)+8}`).join('');
+const area=`${path}L${W},${H+8}L0,${H+8}Z`;
+const svg=$('growth');
+svg.appendChild(el('path',{d:area,fill:'#1a2333'}));
+svg.appendChild(el('path',{d:path,fill:'none',stroke:'#ffb454','stroke-width':2}));
+const lx=el('text',{x:W,y:14,fill:'#8a91a3','font-size':'11','text-anchor':'end',transform:'scale(0.001)'});
+lx.textContent=fn(maxC)+' total churn';
+svg.appendChild(lx);
+
+// drama
+const dr=[];
+dr.push({tag:'Biggest change',h:D.drama.biggest_commit,
+  txt:`+${fn(D.drama.biggest_commit.ins)} −${fn(D.drama.biggest_commit.del)} lines in one commit.`});
+if(D.drama.mass_deletion)dr.push({tag:'The great deletion',h:D.drama.mass_deletion,
+  txt:`−${fn(D.drama.mass_deletion.del-D.drama.mass_deletion.ins)} net lines. Someone had to do it.`});
+if(D.drama.longest_stall)dr.push({tag:'Longest silence',h:{ts:D.drama.longest_stall.resumed_ts},
+  txt:`${D.drama.longest_stall.days} days of quiet, then work resumed.`});
+$('drama').innerHTML=dr.map(c=>`<div class="card"><div class="tag">${c.tag}</div>
+  <h3 class="mono">${esc(c.h.subject||'')}</h3><p>${c.txt} <span style="opacity:.7">${fd(c.h.ts)}</span></p></div>`).join('');
+
+goto(0);
+</script>
+</body>
+</html>

@@ -48,5 +48,5 @@ cp -r skills/skills/git-story ~/.claude/skills/
 Then, in any repo: "tell this repo's story."
 
 Samples live in [`skills/git-story/samples/`](../skills/git-story/samples/) —
-express (the flagship demo), my blog repo, and a single-commit adversarial
-case.
+express and axios (famous repos with 12-17 years of history), plus a
+single-commit adversarial case.

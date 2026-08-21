@@ -18,7 +18,7 @@ cp -r skills/skills/<skill-name> ~/.claude/skills/
 
 | Skill | What it makes | Sample |
 |-------|---------------|--------|
-| [git-story](skills/git-story/) | Animated HTML timeline of how a repo came to be | [react sample](skills/git-story/samples/) |
+| [git-story](skills/git-story/) | Animated HTML timeline of how a repo came to be | [express sample](skills/git-story/samples/express.html) · [axios](skills/git-story/samples/axios.html) |
 
 ## Quality promise
 
