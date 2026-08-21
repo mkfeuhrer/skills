@@ -1,0 +1,252 @@
+#!/usr/bin/env python3
+"""Render story.json into a standalone offline git-story.html.
+
+Deterministic except for nothing: output depends only on the JSON input.
+No remote resources. Inline SVG charts, CSS animations, vanilla JS.
+"""
+import argparse
+import datetime as dt
+import json
+
+
+def fmt_date(ts):
+    return dt.datetime.fromtimestamp(ts, dt.timezone.utc).strftime("%b %Y")
+
+
+def fmt_num(x):
+    if x >= 1_000_000:
+        return f"{x/1_000_000:.1f}M"
+    if x >= 1_000:
+        return f"{x/1_000:.1f}k"
+    return str(x)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("story")
+    ap.add_argument("out")
+    args = ap.parse_args()
+
+    with open(args.story) as f:
+        story = json.load(f)
+
+    s = story["stats"]
+    repo_name = story["meta"].get("repo_path", "").rstrip("/").split("/")[-1] or "this repo"
+    title = story["meta"].get("title") or f"The Story of {repo_name}"
+    tagline = story["meta"].get("tagline") or \
+        f"{fmt_num(s['total_commits'])} commits over {s['span_days']} days"
+
+    payload = json.dumps(story)
+
+    html = TEMPLATE.replace("__PAYLOAD__", payload)
+    with open(args.out, "w") as f:
+        f.write(html)
+    print(f"wrote {args.out} ({len(html)//1024} KB)")
+
+
+TEMPLATE = r"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>git-story</title>
+<style>
+:root{
+  --bg:#0d0f14; --panel:#151923; --ink:#e8e6e1; --dim:#8a91a3;
+  --accent:#ffb454; --accent2:#5cc8ff; --line:#242a38;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);
+  font:16px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;}
+.mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.wrap{max-width:1060px;margin:0 auto;padding:48px 28px}
+
+/* poster */
+.poster{border:1px solid var(--line);background:var(--panel);
+  padding:56px 48px;position:relative;overflow:hidden}
+.poster .kick{color:var(--accent);letter-spacing:.18em;text-transform:uppercase;
+  font-size:12px;font-family:ui-monospace,Menlo,monospace;margin-bottom:16px}
+.poster h1{font-size:clamp(34px,5vw,58px);line-height:1.08;font-weight:800;
+  letter-spacing:-.02em;max-width:20ch}
+.poster .tagline{color:var(--dim);margin-top:14px;font-size:19px}
+.stats{display:flex;gap:40px;margin-top:36px;flex-wrap:wrap}
+.stat b{display:block;font-size:30px;color:var(--accent);font-weight:750}
+.stat span{color:var(--dim);font-size:13px;letter-spacing:.06em;text-transform:uppercase}
+.contrib{margin-top:30px;color:var(--dim);font-size:13px}
+
+/* timeline */
+h2.sec{margin:64px 0 8px;font-size:13px;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--accent);font-weight:600}
+.sub{color:var(--dim);margin-bottom:24px;font-size:15px}
+.tlbox{border:1px solid var(--line);background:var(--panel);padding:32px 28px}
+.controls{display:flex;align-items:center;gap:14px;margin-bottom:10px}
+#play{background:var(--accent);color:#14100a;border:none;font-weight:700;
+  padding:9px 22px;border-radius:999px;cursor:pointer;font-size:14px}
+#play:hover{filter:brightness(1.08)}
+#clock{color:var(--dim)}
+.rail{position:relative;height:74px;margin-top:18px}
+.rail svg{width:100%;height:100%;display:block}
+#cursorline{position:absolute;top:-12px;bottom:-12px;width:2px;background:var(--accent);
+  left:0;opacity:0;transition:left .1s linear}
+
+/* eras */
+.era{display:none;border-left:3px solid var(--accent);padding:18px 22px;
+  background:var(--panel);border-top:1px solid var(--line);
+  border-right:1px solid var(--line);border-bottom:1px solid var(--line);
+  margin-bottom:-1px}
+.era.on{display:block;animation:fadeup .45s ease both}
+@keyframes fadeup{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.era h3{font-size:21px;font-weight:700;letter-spacing:-.01em}
+.era .dates{color:var(--accent2);font-size:13px;margin:2px 0 10px}
+.era p.cap{color:var(--dim);max-width:70ch}
+.hl{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line)}
+.hl .subj{font-size:14px}
+.hl .note{color:var(--dim);font-size:13px;font-style:italic}
+.hl .meta{color:var(--dim);font-size:11.5px;margin-top:2px}
+
+/* chart */
+.chart{border:1px solid var(--line);background:var(--panel);padding:26px 22px 14px}
+.chart svg{width:100%;height:220px;display:block}
+.legend{color:var(--dim);font-size:12px;padding:8px 4px 0}
+
+/* drama */
+.drama{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.card{border:1px solid var(--line);background:var(--panel);padding:24px}
+.card .tag{color:var(--accent);font-size:11px;letter-spacing:.15em;text-transform:uppercase}
+.card h3{margin:8px 0 6px;font-size:17px}
+.card p{color:var(--dim);font-size:14px}
+footer{margin-top:72px;color:var(--dim);font-size:13px;display:flex;
+  justify-content:space-between;border-top:1px solid var(--line);padding-top:20px}
+footer a{color:var(--accent2);text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <section class="poster" id="poster">
+    <div class="kick">git-story / a repository's life in one page</div>
+    <h1 id="t"></h1>
+    <div class="tagline" id="tg"></div>
+    <div class="stats" id="st"></div>
+    <div class="contrib" id="ct"></div>
+  </section>
+
+  <h2 class="sec">The timeline</h2>
+  <p class="sub">Press play — watch the project unfold era by era.</p>
+  <div class="tlbox">
+    <div class="controls"><button id="play">Play</button><span id="clock"></span></div>
+    <div class="rail"><svg id="rail" preserveAspectRatio="none"></svg><div id="cursorline"></div></div>
+  </div>
+  <div id="eras" style="margin-top:18px"></div>
+
+  <h2 class="sec">Growth</h2>
+  <p class="sub">Cumulative lines added and deleted across history.</p>
+  <div class="chart"><svg id="growth" preserveAspectRatio="none"></svg>
+  <div class="legend">churn = insertions + deletions, sampled at regular commit intervals</div></div>
+
+  <h2 class="sec">Dramatic moments</h2>
+  <div class="drama" id="drama"></div>
+
+  <footer>
+    <span>made with <a href="https://github.com/mkfeuhrer/skills">git-story</a></span>
+    <span class="mono" id="gen"></span>
+  </footer>
+</div>
+
+<script>
+const D = __PAYLOAD__;
+const $ = id => document.getElementById(id);
+const fd = ts => new Date(ts*1000).toLocaleDateString(undefined,{year:'numeric',month:'short'});
+const fn = x => x>=1e6?(x/1e6).toFixed(1)+'M':x>=1e3?(x/1e3).toFixed(1)+'k':''+x;
+
+// poster
+$('t').textContent = D.meta.title || 'The Story of ' + D.meta.repo_path.split('/').pop();
+$('tg').textContent = D.meta.tagline || '';
+const st = D.stats;
+const dur = st.span_days >= 60
+  ? `<b>${fn(Math.round(st.span_days/30))}</b><span>months</span>`
+  : `<b>${st.span_days}</b><span>days</span>`;
+$('st').innerHTML =
+  `<div class="stat"><b>${fn(st.total_commits)}</b><span>commits</span></div>`+
+  `<div class="stat"><b>${fn(st.contributors)}</b><span>contributors</span></div>`+
+  `<div class="stat">${dur}</div>`+
+  `<div class="stat"><b>${fn(st.total_insertions)}</b><span>lines added</span></div>`;
+$('ct').textContent = 'top contributors: ' +
+  D.top_contributors.slice(0,5).map(c=>c.name+' ('+c.commits+')').join(', ');
+$('gen').textContent = 'generated '+D.generated_at.slice(0,10);
+
+// rail
+const t0 = st.first_commit_ts, t1 = st.last_commit_ts, span = Math.max(1,t1-t0);
+const X = ts => ((ts-t0)/span)*1000;
+const rail = $('rail');
+const NS='http://www.w3.org/2000/svg';
+function el(n,a){const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);return e;}
+D.eras.forEach((era,i)=>{
+  const w=Math.max(2,X(era.end_ts)-X(era.start_ts));
+  const r=el('rect',{x:X(era.start_ts),y:22,width:w,height:30,rx:3,
+    fill:i%2?'#243247':'#2c3d57',stroke:'#3a4f70','data-i':i});
+  r.style.cursor='pointer';r.addEventListener('click',()=>goto(i));
+  rail.appendChild(r);
+});
+[t0,t1].forEach((ts,i)=>{const tx=el('text',{x:i?998:2,y:68,fill:'#8a91a3',
+  'font-size':'12','text-anchor':i?'end':'start'});tx.textContent=fd(ts);rail.appendChild(tx);});
+
+// era cards
+D.eras.forEach((era,i)=>{
+  const d=document.createElement('div');d.className='era';d.id='era'+i;
+  const hl=era.highlights.map(h=>`<div class="hl"><div class="subj mono">${esc(h.subject)}</div>
+    <div class="note">${esc(h.note||'')}</div>
+    <div class="meta">${fd(h.ts)} · ${esc(h.author)} · +${fn(h.ins)} −${fn(h.del)}</div></div>`).join('');
+  d.innerHTML=`<h3>${i+1}. ${esc(era.title||'Era '+(i+1))}</h3>
+    <div class="dates">${fd(era.start_ts)} – ${fd(era.end_ts)} · ${era.commit_count} commits · +${fn(era.insertions)} −${fn(era.deletions)}</div>
+    ${era.caption?`<p class="cap">${esc(era.caption)}</p>`:''}${hl}`;
+  $('eras').appendChild(d);
+});
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+// playback
+let playing=false,timer=null;
+$('play').addEventListener('click',()=>playing?stop():start());
+function start(){playing=true;$('play').textContent='Stop';let i=0;goto(0);
+  timer=setInterval(()=>{i++;if(i>=D.eras.length){stop();}else goto(i);},3800);}
+function stop(){playing=false;clearInterval(timer);$('play').textContent='Play';}
+function goto(i){
+  document.querySelectorAll('.era').forEach(e=>e.classList.remove('on'));
+  const card=$('era'+i);if(card)card.classList.add('on');
+  const mid=(X(D.eras[i].start_ts)+X(D.eras[i].end_ts))/2000;
+  $('cursorline').style.opacity=1;$('cursorline').style.left=(mid/10)+'%';
+  $('clock').textContent=`${fd(D.eras[i].start_ts)} — ${fd(D.eras[i].end_ts)} · era ${i+1}/${D.eras.length}`;
+}
+
+// growth chart
+const g=D.growth,maxC=g[g.length-1].churn||1;
+const W=1000,H=200;
+const path=g.map((p,i)=>`${i?'L':'M'}${((p.ts-t0)/span)*W},${H-(p.churn/maxC)*(H-16)+8}`).join('');
+const area=`${path}L${W},${H+8}L0,${H+8}Z`;
+const svg=$('growth');
+svg.appendChild(el('path',{d:area,fill:'#1a2333'}));
+svg.appendChild(el('path',{d:path,fill:'none',stroke:'#ffb454','stroke-width':2}));
+const lx=el('text',{x:W,y:14,fill:'#8a91a3','font-size':'11','text-anchor':'end',transform:'scale(0.001)'});
+lx.textContent=fn(maxC)+' total churn';
+svg.appendChild(lx);
+
+// drama
+const dr=[];
+dr.push({tag:'Biggest change',h:D.drama.biggest_commit,
+  txt:`+${fn(D.drama.biggest_commit.ins)} −${fn(D.drama.biggest_commit.del)} lines in one commit.`});
+if(D.drama.mass_deletion)dr.push({tag:'The great deletion',h:D.drama.mass_deletion,
+  txt:`−${fn(D.drama.mass_deletion.del-D.drama.mass_deletion.ins)} net lines. Someone had to do it.`});
+if(D.drama.longest_stall)dr.push({tag:'Longest silence',h:{ts:D.drama.longest_stall.resumed_ts},
+  txt:`${D.drama.longest_stall.days} days of quiet, then work resumed.`});
+$('drama').innerHTML=dr.map(c=>`<div class="card"><div class="tag">${c.tag}</div>
+  <h3 class="mono">${esc(c.h.subject||'')}</h3><p>${c.txt} <span style="opacity:.7">${fd(c.h.ts)}</span></p></div>`).join('');
+
+goto(0);
+</script>
+</body>
+</html>
+"""
+
+
+if __name__ == "__main__":
+    main()
