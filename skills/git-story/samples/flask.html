@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>git-story</title>
+<style>
+:root{
+  --bg:#0d0f14; --panel:#151923; --ink:#e8e6e1; --dim:#8a91a3;
+  --accent:#ffb454; --accent2:#5cc8ff; --line:#242a38;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);
+  font:16px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;}
+.mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.wrap{max-width:1060px;margin:0 auto;padding:48px 28px}
+
+/* poster */
+.poster{border:1px solid var(--line);background:var(--panel);
+  padding:56px 48px;position:relative;overflow:hidden}
+.poster .kick{color:var(--accent);letter-spacing:.18em;text-transform:uppercase;
+  font-size:12px;font-family:ui-monospace,Menlo,monospace;margin-bottom:16px}
+.poster h1{font-size:clamp(34px,5vw,58px);line-height:1.08;font-weight:800;
+  letter-spacing:-.02em;max-width:20ch}
+.poster .tagline{color:var(--dim);margin-top:14px;font-size:19px}
+.stats{display:flex;gap:40px;margin-top:36px;flex-wrap:wrap}
+.stat b{display:block;font-size:30px;color:var(--accent);font-weight:750}
+.stat span{color:var(--dim);font-size:13px;letter-spacing:.06em;text-transform:uppercase}
+.contrib{margin-top:30px;color:var(--dim);font-size:13px}
+
+/* timeline */
+h2.sec{margin:64px 0 8px;font-size:13px;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--accent);font-weight:600}
+.sub{color:var(--dim);margin-bottom:24px;font-size:15px}
+.tlbox{border:1px solid var(--line);background:var(--panel);padding:32px 28px}
+.controls{display:flex;align-items:center;gap:14px;margin-bottom:10px}
+#play{background:var(--accent);color:#14100a;border:none;font-weight:700;
+  padding:9px 22px;border-radius:999px;cursor:pointer;font-size:14px}
+#play:hover{filter:brightness(1.08)}
+#clock{color:var(--dim)}
+.rail{position:relative;height:74px;margin-top:18px}
+.rail svg{width:100%;height:100%;display:block}
+#cursorline{position:absolute;top:-12px;bottom:-12px;width:2px;background:var(--accent);
+  left:0;opacity:0;transition:left .1s linear}
+
+/* eras */
+.era{display:none;border-left:3px solid var(--accent);padding:18px 22px;
+  background:var(--panel);border-top:1px solid var(--line);
+  border-right:1px solid var(--line);border-bottom:1px solid var(--line);
+  margin-bottom:-1px}
+.era.on{display:block;animation:fadeup .45s ease both}
+@keyframes fadeup{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.era h3{font-size:21px;font-weight:700;letter-spacing:-.01em}
+.era .dates{color:var(--accent2);font-size:13px;margin:2px 0 10px}
+.era p.cap{color:var(--dim);max-width:70ch}
+.hl{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line)}
+.hl .subj{font-size:14px}
+.hl .note{color:var(--dim);font-size:13px;font-style:italic}
+.hl .meta{color:var(--dim);font-size:11.5px;margin-top:2px}
+
+/* chart */
+.chart{border:1px solid var(--line);background:var(--panel);padding:26px 22px 14px}
+.chart svg{width:100%;height:220px;display:block}
+.legend{color:var(--dim);font-size:12px;padding:8px 4px 0}
+
+/* drama */
+.drama{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.card{border:1px solid var(--line);background:var(--panel);padding:24px}
+.card .tag{color:var(--accent);font-size:11px;letter-spacing:.15em;text-transform:uppercase}
+.card h3{margin:8px 0 6px;font-size:17px}
+.card p{color:var(--dim);font-size:14px}
+footer{margin-top:72px;color:var(--dim);font-size:13px;display:flex;
+  justify-content:space-between;border-top:1px solid var(--line);padding-top:20px}
+footer a{color:var(--accent2);text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <section class="poster" id="poster">
+    <div class="kick">git-story / a repository's life in one page</div>
+    <h1 id="t"></h1>
+    <div class="tagline" id="tg"></div>
+    <div class="stats" id="st"></div>
+    <div class="contrib" id="ct"></div>
+  </section>
+
+  <h2 class="sec">The timeline</h2>
+  <p class="sub">Press play — watch the project unfold era by era.</p>
+  <div class="tlbox">
+    <div class="controls"><button id="play">Play</button><span id="clock"></span></div>
+    <div class="rail"><svg id="rail" preserveAspectRatio="none"></svg><div id="cursorline"></div></div>
+  </div>
+  <div id="eras" style="margin-top:18px"></div>
+
+  <h2 class="sec">Growth</h2>
+  <p class="sub">Cumulative lines added and deleted across history.</p>
+  <div class="chart"><svg id="growth" preserveAspectRatio="none"></svg>
+  <div class="legend">churn = insertions + deletions, sampled at regular commit intervals</div></div>
+
+  <h2 class="sec">Dramatic moments</h2>
+  <div class="drama" id="drama"></div>
+
+  <footer>
+    <span>made with <a href="https://github.com/mkfeuhrer/skills">git-story</a></span>
+    <span class="mono" id="gen"></span>
+  </footer>
+</div>
+
+<script>
+const D = {"generated_at": "2026-08-21T22:26:50+00:00", "meta": {"repo_path": "/tmp/flask", "title": "The Story of Flask", "tagline": "5,556 commits from 858 contributors across 16 years."}, "stats": {"total_commits": 5556, "sampled": false, "contributors": 858, "span_days": 5976, "first_commit_ts": 1270552377, "last_commit_ts": 1786905331, "total_insertions": 119076, "total_deletions": 81542}, "top_contributors": [{"name": "Armin Ronacher", "commits": 977}, {"name": "David Lord", "commits": 819}, {"name": "Markus Unterwaditzer", "commits": 133}, {"name": "Ron DuPlain", "commits": 88}, {"name": "Grey Li", "commits": 62}, {"name": "dependabot[bot]", "commits": 60}, {"name": "Daniel Neuha\u0308user", "commits": 58}, {"name": "dependabot-preview[bot]", "commits": 51}, {"name": "pgjones", "commits": 49}, {"name": "pre-commit-ci[bot]", "commits": 39}], "growth": [{"ts": 1270552377, "churn": 984}, {"ts": 1270908013, "churn": 3829}, {"ts": 1270950818, "churn": 4552}, {"ts": 1271113732, "churn": 5189}, {"ts": 1271376894, "churn": 6621}, {"ts": 1271420244, "churn": 7054}, {"ts": 1271552828, "churn": 7514}, {"ts": 1271604743, "churn": 9796}, {"ts": 1271669024, "churn": 10688}, {"ts": 1271720122, "churn": 11242}, {"ts": 1271782998, "churn": 11573}, {"ts": 1271805789, "churn": 11783}, {"ts": 1272035819, "churn": 12167}, {"ts": 1272208124, "churn": 13194}, {"ts": 1272820244, "churn": 13566}, {"ts": 1273256160, "churn": 14802}, {"ts": 1273735323, "churn": 15267}, {"ts": 1274139667, "churn": 16201}, {"ts": 1274723890, "churn": 17097}, {"ts": 1274987845, "churn": 17784}, {"ts": 1275320285, "churn": 17978}, {"ts": 1275695741, "churn": 18559}, {"ts": 1275887865, "churn": 18986}, {"ts": 1276556417, "churn": 19182}, {"ts": 1277525066, "churn": 19469}, {"ts": 1277696990, "churn": 19980}, {"ts": 1277981794, "churn": 20198}, {"ts": 1278237368, "churn": 23761}, {"ts": 1278246020, "churn": 24250}, {"ts": 1278318726, "churn": 24670}, {"ts": 1278436311, "churn": 25140}, {"ts": 1279068641, "churn": 25466}, {"ts": 1279221731, "churn": 25815}, {"ts": 1279375341, "churn": 26437}, {"ts": 1279479776, "churn": 26767}, {"ts": 1279893531, "churn": 27052}, {"ts": 1280076696, "churn": 27730}, {"ts": 1280104636, "churn": 27941}, {"ts": 1280247587, "churn": 28148}, {"ts": 1280646249, "churn": 28462}, {"ts": 1281474655, "churn": 28757}, {"ts": 1286345135, "churn": 28884}, {"ts": 1288298487, "churn": 29122}, {"ts": 1291756126, "churn": 29287}, {"ts": 1295194405, "churn": 29421}, {"ts": 1299695499, "churn": 29623}, {"ts": 1300126752, "churn": 30035}, {"ts": 1300436193, "churn": 30455}, {"ts": 1303740118, "churn": 30697}, {"ts": 1306248126, "churn": 30764}, {"ts": 1306692339, "churn": 32324}, {"ts": 1307277453, "churn": 32984}, {"ts": 1307498107, "churn": 33260}, {"ts": 1308274180, "churn": 34190}, {"ts": 1308997567, "churn": 34879}, {"ts": 1309139028, "churn": 35470}, {"ts": 1309264609, "churn": 35960}, {"ts": 1309334763, "churn": 36003}, {"ts": 1309940819, "churn": 36132}, {"ts": 1310145640, "churn": 36471}, {"ts": 1310646314, "churn": 36591}, {"ts": 1311798896, "churn": 36772}, {"ts": 1312555632, "churn": 37009}, {"ts": 1312832813, "churn": 37315}, {"ts": 1312992016, "churn": 37772}, {"ts": 1314282040, "churn": 38198}, {"ts": 1314342834, "churn": 38591}, {"ts": 1314356560, "churn": 44367}, {"ts": 1314397948, "churn": 44651}, {"ts": 1315241548, "churn": 44992}, {"ts": 1316341362, "churn": 45340}, {"ts": 1316569656, "churn": 45706}, {"ts": 1316970167, "churn": 46077}, {"ts": 1317510382, "churn": 46533}, {"ts": 1319413260, "churn": 46641}, {"ts": 1322251699, "churn": 46904}, {"ts": 1325976877, "churn": 47192}, {"ts": 1326773421, "churn": 47673}, {"ts": 1327446014, "churn": 47920}, {"ts": 1328578097, "churn": 48161}, {"ts": 1330590296, "churn": 48366}, {"ts": 1331576163, "churn": 48655}, {"ts": 1331665967, "churn": 49429}, {"ts": 1333177872, "churn": 49562}, {"ts": 1333926552, "churn": 49745}, {"ts": 1333989316, "churn": 50483}, {"ts": 1334927278, "churn": 50636}, {"ts": 1335238978, "churn": 51046}, {"ts": 1339595014, "churn": 51368}, {"ts": 1341141156, "churn": 51714}, {"ts": 1342897244, "churn": 51763}, {"ts": 1345471038, "churn": 52203}, {"ts": 1349607106, "churn": 52602}, {"ts": 1349618893, "churn": 52759}, {"ts": 1349989501, "churn": 53529}, {"ts": 1352768318, "churn": 53659}, {"ts": 1356994858, "churn": 53851}, {"ts": 1360589124, "churn": 54263}, {"ts": 1364210968, "churn": 54424}, {"ts": 1368527593, "churn": 54863}, {"ts": 1368892815, "churn": 55141}, {"ts": 1369179184, "churn": 55427}, {"ts": 1369249381, "churn": 56266}, {"ts": 1369315071, "churn": 56435}, {"ts": 1369914672, "churn": 56600}, {"ts": 1369946394, "churn": 56734}, {"ts": 1370422406, "churn": 57128}, {"ts": 1370776994, "churn": 57512}, {"ts": 1371111097, "churn": 57824}, {"ts": 1371194917, "churn": 57926}, {"ts": 1372344567, "churn": 57993}, {"ts": 1374880842, "churn": 58072}, {"ts": 1376402038, "churn": 58328}, {"ts": 1378453382, "churn": 58736}, {"ts": 1381495186, "churn": 58842}, {"ts": 1384002794, "churn": 58958}, {"ts": 1389400282, "churn": 59180}, {"ts": 1391878873, "churn": 59318}, {"ts": 1391950914, "churn": 59443}, {"ts": 1392920142, "churn": 59566}, {"ts": 1394891137, "churn": 59631}, {"ts": 1397215917, "churn": 59798}, {"ts": 1398264398, "churn": 60259}, {"ts": 1398470472, "churn": 60396}, {"ts": 1398691107, "churn": 61420}, {"ts": 1399492272, "churn": 62233}, {"ts": 1400309074, "churn": 62383}, {"ts": 1404226670, "churn": 62468}, {"ts": 1406376936, "churn": 62612}, {"ts": 1409030288, "churn": 62921}, {"ts": 1409139250, "churn": 63552}, {"ts": 1409522420, "churn": 64676}, {"ts": 1409761890, "churn": 66940}, {"ts": 1409834101, "churn": 70177}, {"ts": 1409962783, "churn": 74114}, {"ts": 1411195306, "churn": 74429}, {"ts": 1413618244, "churn": 74640}, {"ts": 1414404783, "churn": 74750}, {"ts": 1414957298, "churn": 74816}, {"ts": 1415161427, "churn": 75533}, {"ts": 1415313764, "churn": 75697}, {"ts": 1418450995, "churn": 75797}, {"ts": 1419779276, "churn": 76208}, {"ts": 1421189261, "churn": 76977}, {"ts": 1423168714, "churn": 77072}, {"ts": 1423678044, "churn": 77373}, {"ts": 1423870841, "churn": 77814}, {"ts": 1425500083, "churn": 77914}, {"ts": 1426132449, "churn": 77990}, {"ts": 1427473834, "churn": 78142}, {"ts": 1427932208, "churn": 78685}, {"ts": 1428767058, "churn": 78968}, {"ts": 1430953667, "churn": 79256}, {"ts": 1433799095, "churn": 79388}, {"ts": 1435687165, "churn": 79802}, {"ts": 1440198345, "churn": 79934}, {"ts": 1445663063, "churn": 80244}, {"ts": 1448710736, "churn": 80363}, {"ts": 1451760962, "churn": 80664}, {"ts": 1457427920, "churn": 80882}, {"ts": 1459624224, "churn": 81081}, {"ts": 1462410865, "churn": 81483}, {"ts": 1464288350, "churn": 82157}, {"ts": 1464529608, "churn": 82437}, {"ts": 1464888573, "churn": 82569}, {"ts": 1464906434, "churn": 82716}, {"ts": 1464976719, "churn": 83114}, {"ts": 1465161677, "churn": 83470}, {"ts": 1465862372, "churn": 83683}, {"ts": 1466712045, "churn": 83801}, {"ts": 1469716488, "churn": 84955}, {"ts": 1471794432, "churn": 85086}, {"ts": 1473193954, "churn": 85316}, {"ts": 1473706517, "churn": 85555}, {"ts": 1476255265, "churn": 85750}, {"ts": 1478059460, "churn": 85835}, {"ts": 1482350808, "churn": 86042}, {"ts": 1483120213, "churn": 86152}, {"ts": 1484301295, "churn": 86330}, {"ts": 1487177756, "churn": 86527}, {"ts": 1489409904, "churn": 86762}, {"ts": 1490382301, "churn": 86918}, {"ts": 1491574243, "churn": 87260}, {"ts": 1492580793, "churn": 87436}, {"ts": 1494347676, "churn": 88382}, {"ts": 1494916808, "churn": 89324}, {"ts": 1495489704, "churn": 89633}, {"ts": 1495501720, "churn": 90269}, {"ts": 1495563528, "churn": 90739}, {"ts": 1495581581, "churn": 93109}, {"ts": 1495731103, "churn": 94248}, {"ts": 1495907037, "churn": 94660}, {"ts": 1496112393, "churn": 95586}, {"ts": 1496604381, "churn": 96771}, {"ts": 1497301644, "churn": 97036}, {"ts": 1497475393, "churn": 97286}, {"ts": 1498494123, "churn": 98387}, {"ts": 1500089663, "churn": 99161}, {"ts": 1502427062, "churn": 100398}, {"ts": 1507729646, "churn": 100981}, {"ts": 1511729436, "churn": 101079}, {"ts": 1513285552, "churn": 101182}, {"ts": 1515232141, "churn": 101453}, {"ts": 1516750492, "churn": 102392}, {"ts": 1518474362, "churn": 109355}, {"ts": 1521474114, "churn": 109948}, {"ts": 1523598851, "churn": 113121}, {"ts": 1524499445, "churn": 113528}, {"ts": 1524770565, "churn": 113664}, {"ts": 1524780905, "churn": 113691}, {"ts": 1524848737, "churn": 113736}, {"ts": 1525054163, "churn": 113912}, {"ts": 1525305709, "churn": 113979}, {"ts": 1527166631, "churn": 114258}, {"ts": 1529208757, "churn": 114368}, {"ts": 1532684169, "churn": 114499}, {"ts": 1537393355, "churn": 114967}, {"ts": 1540422404, "churn": 115413}, {"ts": 1542134450, "churn": 115693}, {"ts": 1546564665, "churn": 115873}, {"ts": 1546895376, "churn": 116409}, {"ts": 1552092117, "churn": 116599}, {"ts": 1556909962, "churn": 116720}, {"ts": 1557158908, "churn": 117185}, {"ts": 1558025276, "churn": 124781}, {"ts": 1558707596, "churn": 125370}, {"ts": 1559317538, "churn": 125748}, {"ts": 1559406140, "churn": 126633}, {"ts": 1561132047, "churn": 127214}, {"ts": 1561999780, "churn": 130597}, {"ts": 1562784320, "churn": 130837}, {"ts": 1567197296, "churn": 130912}, {"ts": 1571439955, "churn": 131630}, {"ts": 1574148885, "churn": 132070}, {"ts": 1581292883, "churn": 132151}, {"ts": 1582920591, "churn": 132218}, {"ts": 1585933691, "churn": 132366}, {"ts": 1586268015, "churn": 136186}, {"ts": 1589839171, "churn": 137613}, {"ts": 1591605870, "churn": 138156}, {"ts": 1593419697, "churn": 138335}, {"ts": 1594221981, "churn": 139089}, {"ts": 1595948359, "churn": 140205}, {"ts": 1597307806, "churn": 140695}, {"ts": 1601302873, "churn": 140741}, {"ts": 1603989200, "churn": 141494}, {"ts": 1604542565, "churn": 142480}, {"ts": 1609494145, "churn": 143433}, {"ts": 1611947013, "churn": 143572}, {"ts": 1612237264, "churn": 143955}, {"ts": 1613493374, "churn": 144479}, {"ts": 1615244747, "churn": 145920}, {"ts": 1617748288, "churn": 146434}, {"ts": 1618587904, "churn": 146649}, {"ts": 1619628405, "churn": 148179}, {"ts": 1620711942, "churn": 148450}, {"ts": 1620795503, "churn": 148630}, {"ts": 1620947764, "churn": 149021}, {"ts": 1621292592, "churn": 149199}, {"ts": 1621590391, "churn": 149600}, {"ts": 1622526208, "churn": 149776}, {"ts": 1624025895, "churn": 149977}, {"ts": 1625523060, "churn": 150158}, {"ts": 1628143867, "churn": 150241}, {"ts": 1630483360, "churn": 150566}, {"ts": 1632732329, "churn": 150640}, {"ts": 1634546259, "churn": 150881}, {"ts": 1636737669, "churn": 151520}, {"ts": 1637417157, "churn": 151868}, {"ts": 1640228768, "churn": 152029}, {"ts": 1644350899, "churn": 152568}, {"ts": 1646775648, "churn": 153458}, {"ts": 1648236271, "churn": 153932}, {"ts": 1649432744, "churn": 154026}, {"ts": 1651167842, "churn": 154172}, {"ts": 1652160136, "churn": 154750}, {"ts": 1653336926, "churn": 155627}, {"ts": 1654538644, "churn": 156072}, {"ts": 1655476697, "churn": 159043}, {"ts": 1656709184, "churn": 161213}, {"ts": 1657289334, "churn": 162268}, {"ts": 1657790542, "churn": 163366}, {"ts": 1659397995, "churn": 164687}, {"ts": 1660000440, "churn": 165695}, {"ts": 1661184352, "churn": 165750}, {"ts": 1667141751, "churn": 165937}, {"ts": 1671726203, "churn": 166112}, {"ts": 1674064241, "churn": 166599}, {"ts": 1675906253, "churn": 167456}, {"ts": 1677171301, "churn": 169312}, {"ts": 1679050729, "churn": 169475}, {"ts": 1681396454, "churn": 170090}, {"ts": 1682015688, "churn": 171521}, {"ts": 1682953292, "churn": 171664}, {"ts": 1683036351, "churn": 171758}, {"ts": 1685638606, "churn": 172038}, {"ts": 1686492225, "churn": 175197}, {"ts": 1688228182, "churn": 175373}, {"ts": 1692007815, "churn": 175486}, {"ts": 1693127832, "churn": 176030}, {"ts": 1697815044, "churn": 176165}, {"ts": 1699550427, "churn": 177123}, {"ts": 1704121879, "churn": 177987}, {"ts": 1706801495, "churn": 178172}, {"ts": 1712518189, "churn": 178958}, {"ts": 1715015967, "churn": 179068}, {"ts": 1719849380, "churn": 179185}, {"ts": 1724456499, "churn": 179721}, {"ts": 1729801672, "churn": 180009}, {"ts": 1730915277, "churn": 180531}, {"ts": 1732321389, "churn": 180977}, {"ts": 1741624452, "churn": 181740}, {"ts": 1747147872, "churn": 184447}, {"ts": 1752657710, "churn": 185804}, {"ts": 1757713923, "churn": 189100}, {"ts": 1769303660, "churn": 192324}, {"ts": 1771455172, "churn": 193280}, {"ts": 1775417461, "churn": 195820}, {"ts": 1785432354, "churn": 200560}, {"ts": 1786905331, "churn": 200618}], "eras": [{"index": 0, "start_ts": 1270552377, "end_ts": 1370422708, "commit_count": 1274, "insertions": 41091, "deletions": 16085, "title": "The Micro Framework", "caption": "Flask started as a single-file micro framework in 2010: the testsuite split into its own package, and the early API took shape around one idea - do more with less.", "highlights": [{"sha": "4cb6eea8f1e1edc707874f72cbca43a0f698ec7d", "ts": 1314354086, "author": "Armin Ronacher", "subject": "Split up testsuite and moved it to flask.testsuite.  This fixes #246", "ins": 2575, "del": 2336, "note": "A key change landed in this era."}, {"sha": "d0dc89ea802130e8a3a16b4fba73fa10815c09fb", "ts": 1278094858, "author": "Justin Quick", "subject": "in with the new. i have the bits in places where i think they should be, now i just need to work on the import scheme layout", "ins": 1574, "del": 0, "note": "A key change landed in this era."}, {"sha": "ee16a68bbd7caf4c8e79c5d6859f72ad38539bbf", "ts": 1278094766, "author": "Justin Quick", "subject": "out with the old", "ins": 0, "del": 1573, "note": "A key change landed in this era."}]}, {"index": 1, "start_ts": 1370422953, "end_ts": 1525835427, "commit_count": 1275, "insertions": 32244, "deletions": 24624, "title": "The Testing Years", "caption": "The project grew up through its test suite: docs were rewritten, class-based fixtures died, and pytest fixtures became the backbone of development.", "highlights": [{"sha": "c3dd7b8e4c9e322c413f4a49e5d15aceafd17c2d", "ts": 1518215945, "author": "David Lord", "subject": "rewrite tutorial docs and example", "ins": 3340, "del": 2237, "note": "The famous Flask tutorial was rewritten for a new generation of learners."}, {"sha": "a4931ff3a74d9fcd8766bee69a01b62a75a5e131", "ts": 1409837829, "author": "Markus Unterwaditzer", "subject": "Kill class in test_basic", "ins": 1340, "del": 1198, "note": "Class-based test scaffolding was removed in favor of plain functions."}, {"sha": "5b0b9717da958fd6325c675d92be4f6667796112", "ts": 1495577919, "author": "Christian Stade-Schuldt", "subject": "DRYing up the test suite using pytest fixtures (#2306)", "ins": 999, "del": 974, "note": "A heavy cleanup removed duplicated test setup across the suite."}]}, {"index": 2, "start_ts": 1526113309, "end_ts": 1786905331, "commit_count": 1275, "insertions": 45741, "deletions": 40833, "title": "The Modernization Era", "caption": "\"Reformat with black\" bookends this chapter: Sansio/IO split from core internals, and the toolchain moved to uv.", "highlights": [{"sha": "025589ee766249652e2e097da05808fe64911ddc", "ts": 1557171581, "author": "David Baumgold", "subject": "Reformat with black", "ins": 3788, "del": 3463, "note": "The entire codebase was reformatted in one mechanical commit."}, {"sha": "0ec7f713d679ceed2c605e62ac5d38d579f29fa0", "ts": 1686492225, "author": "pgjones", "subject": "Split the App and Blueprint into Sansio and IO parts", "ins": 1622, "del": 1353, "note": "A key change landed in this era."}, {"sha": "0109e496f6ca68de29480fe6413e81b1d3f86aa9", "ts": 1747010703, "author": "David Lord", "subject": "use uv", "ins": 1876, "del": 534, "note": "A key change landed in this era."}]}], "drama": {"biggest_commit": {"sha": "025589ee766249652e2e097da05808fe64911ddc", "ts": 1557171581, "subject": "Reformat with black", "ins": 3788, "del": 3463, "note": "One automated reformat touched the whole codebase."}, "mass_deletion": {"sha": "ee16a68bbd7caf4c8e79c5d6859f72ad38539bbf", "ts": 1278094766, "subject": "out with the old", "ins": 0, "del": 1573, "note": "The largest net deletion in Flask history."}, "longest_stall": {"after_sha": "0e59442f6cce9442c1dcaf8515df7182312fa6cd", "days": 41, "resumed_ts": 1712510680}}};
+const $ = id => document.getElementById(id);
+const fd = ts => new Date(ts*1000).toLocaleDateString(undefined,{year:'numeric',month:'short'});
+const fn = x => x>=1e6?(x/1e6).toFixed(1)+'M':x>=1e3?(x/1e3).toFixed(1)+'k':''+x;
+
+// poster
+$('t').textContent = D.meta.title || 'The Story of ' + D.meta.repo_path.split('/').pop();
+$('tg').textContent = D.meta.tagline || '';
+const st = D.stats;
+const dur = st.span_days >= 60
+  ? `<b>${fn(Math.round(st.span_days/30))}</b><span>months</span>`
+  : `<b>${st.span_days}</b><span>days</span>`;
+$('st').innerHTML =
+  `<div class="stat"><b>${fn(st.total_commits)}</b><span>commits</span></div>`+
+  `<div class="stat"><b>${fn(st.contributors)}</b><span>contributors</span></div>`+
+  `<div class="stat">${dur}</div>`+
+  `<div class="stat"><b>${fn(st.total_insertions)}</b><span>lines added</span></div>`;
+$('ct').textContent = 'top contributors: ' +
+  D.top_contributors.slice(0,5).map(c=>c.name+' ('+c.commits+')').join(', ');
+$('gen').textContent = 'generated '+D.generated_at.slice(0,10);
+
+// rail
+const t0 = st.first_commit_ts, t1 = st.last_commit_ts, span = Math.max(1,t1-t0);
+const X = ts => ((ts-t0)/span)*1000;
+const rail = $('rail');
+const NS='http://www.w3.org/2000/svg';
+function el(n,a){const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);return e;}
+D.eras.forEach((era,i)=>{
+  const w=Math.max(2,X(era.end_ts)-X(era.start_ts));
+  const r=el('rect',{x:X(era.start_ts),y:22,width:w,height:30,rx:3,
+    fill:i%2?'#243247':'#2c3d57',stroke:'#3a4f70','data-i':i});
+  r.style.cursor='pointer';r.addEventListener('click',()=>goto(i));
+  rail.appendChild(r);
+});
+[t0,t1].forEach((ts,i)=>{const tx=el('text',{x:i?998:2,y:68,fill:'#8a91a3',
+  'font-size':'12','text-anchor':i?'end':'start'});tx.textContent=fd(ts);rail.appendChild(tx);});
+
+// era cards
+D.eras.forEach((era,i)=>{
+  const d=document.createElement('div');d.className='era';d.id='era'+i;
+  const hl=era.highlights.map(h=>`<div class="hl"><div class="subj mono">${esc(h.subject)}</div>
+    <div class="note">${esc(h.note||'')}</div>
+    <div class="meta">${fd(h.ts)} · ${esc(h.author)} · +${fn(h.ins)} −${fn(h.del)}</div></div>`).join('');
+  d.innerHTML=`<h3>${i+1}. ${esc(era.title||'Era '+(i+1))}</h3>
+    <div class="dates">${fd(era.start_ts)} – ${fd(era.end_ts)} · ${era.commit_count} commits · +${fn(era.insertions)} −${fn(era.deletions)}</div>
+    ${era.caption?`<p class="cap">${esc(era.caption)}</p>`:''}${hl}`;
+  $('eras').appendChild(d);
+});
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+// playback
+let playing=false,timer=null;
+$('play').addEventListener('click',()=>playing?stop():start());
+function start(){playing=true;$('play').textContent='Stop';let i=0;goto(0);
+  timer=setInterval(()=>{i++;if(i>=D.eras.length){stop();}else goto(i);},3800);}
+function stop(){playing=false;clearInterval(timer);$('play').textContent='Play';}
+function goto(i){
+  document.querySelectorAll('.era').forEach(e=>e.classList.remove('on'));
+  const card=$('era'+i);if(card)card.classList.add('on');
+  const mid=(X(D.eras[i].start_ts)+X(D.eras[i].end_ts))/2000;
+  $('cursorline').style.opacity=1;$('cursorline').style.left=(mid/10)+'%';
+  $('clock').textContent=`${fd(D.eras[i].start_ts)} — ${fd(D.eras[i].end_ts)} · era ${i+1}/${D.eras.length}`;
+}
+
+// growth chart
+const g=D.growth,maxC=g[g.length-1].churn||1;
+const W=1000,H=200;
+const path=g.map((p,i)=>`${i?'L':'M'}${((p.ts-t0)/span)*W},${H-(p.churn/maxC)*(H-16)+8}`).join('');
+const area=`${path}L${W},${H+8}L0,${H+8}Z`;
+const svg=$('growth');
+svg.appendChild(el('path',{d:area,fill:'#1a2333'}));
+svg.appendChild(el('path',{d:path,fill:'none',stroke:'#ffb454','stroke-width':2}));
+const lx=el('text',{x:W,y:14,fill:'#8a91a3','font-size':'11','text-anchor':'end',transform:'scale(0.001)'});
+lx.textContent=fn(maxC)+' total churn';
+svg.appendChild(lx);
+
+// drama
+const dr=[];
+dr.push({tag:'Biggest change',h:D.drama.biggest_commit,
+  txt:`+${fn(D.drama.biggest_commit.ins)} −${fn(D.drama.biggest_commit.del)} lines in one commit.`});
+if(D.drama.mass_deletion)dr.push({tag:'The great deletion',h:D.drama.mass_deletion,
+  txt:`−${fn(D.drama.mass_deletion.del-D.drama.mass_deletion.ins)} net lines. Someone had to do it.`});
+if(D.drama.longest_stall)dr.push({tag:'Longest silence',h:{ts:D.drama.longest_stall.resumed_ts},
+  txt:`${D.drama.longest_stall.days} days of quiet, then work resumed.`});
+$('drama').innerHTML=dr.map(c=>`<div class="card"><div class="tag">${c.tag}</div>
+  <h3 class="mono">${esc(c.h.subject||'')}</h3><p>${c.txt} <span style="opacity:.7">${fd(c.h.ts)}</span></p></div>`).join('');
+
+goto(0);
+</script>
+</body>
+</html>

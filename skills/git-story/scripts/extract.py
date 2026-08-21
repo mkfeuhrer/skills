@@ -124,6 +124,13 @@ def main():
         factor *= 4
         eras = segment(max(90 * 86400, factor * median_gap))
 
+    # Fallback: actively-maintained repos never go silent long enough to split
+    # on gaps. Give any multi-year history chapter boundaries so the story
+    # does not collapse into one era. Deterministic: equal-commit thirds.
+    if len(eras) == 1 and n >= 60 and span_days > 730:
+        cuts = [n * i // 3 for i in (1, 2)]
+        eras = [(0, cuts[0] - 1), (cuts[0], cuts[1] - 1), (cuts[1], n - 1)]
+
     era_objs = []
     for idx, (s, e) in enumerate(eras):
         seg = commits[s:e + 1]
