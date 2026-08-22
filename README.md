@@ -19,6 +19,8 @@ cp -r skills/skills/<skill-name> ~/.claude/skills/
 | Skill | What it makes | Sample |
 |-------|---------------|--------|
 | [git-story](skills/git-story/) | Animated HTML timeline of how a repo came to be | [express sample](skills/git-story/samples/express.html) · [axios](skills/git-story/samples/axios.html) |
+| [test-hunter](skills/test-hunter/) | A–F graded report card: missing tests, coverage gaps, flaky + over-mocked tests | [fixture card](skills/test-hunter/samples/fixture-report.html) |
+| [slop-cut](skills/slop-cut/) | Numeric Slop Index + before/after cleaned text for AI-sounding writing | [ai vs clean](skills/slop-cut/samples/ai-vs-clean.html) |
 
 ## Quality promise
 

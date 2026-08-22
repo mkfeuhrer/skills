@@ -17,6 +17,7 @@ gates (marked [M]); judgment gates are human/agent-reviewed.
 5. **Failure modes documented** — README or SKILL.md states what happens on
    empty, huge, and malformed inputs.
 6. **Cross-agent check** — Ran end-to-end on Claude Code AND OpenCode.
-7. **[M] No slop** — SKILL.md <= 200 lines; no filler adjectives, no
-   "leverage/utilize/delve"; passes ai-slop review.
+ 7. **[M] No slop** — SKILL.md <= 200 lines; no filler adjectives, no
+    "leverage/utilize/delve"; passes ai-slop review AND runs through slop-cut
+    (scripts/scan.py) with a documented Slop Index below the repo threshold.
 8. **Demo asset** — Screenshot/GIF in samples/, blog.md drafted.

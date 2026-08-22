@@ -1,0 +1,1 @@
+We shipped a small change to the build cache last week. It cut cold-build times from 4 minutes to about 90 seconds on the CI runners. The tricky part was invalidating entries when a header changed; we now hash the included paths explicitly. If you see a stale artifact, delete `.cache/build` and rerun. The flag is `--no-cache` in case you need to disable it during debugging.
